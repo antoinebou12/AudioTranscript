@@ -7,9 +7,14 @@ import speech_recognition as sr
 from rich.console import Console
 from rich.progress import track
 
+from dotenv import load_dotenv
+load_dotenv(".env")
+
+
 console = Console()
 
 app = typer.Typer()
+
 
 def transcribe_audio_file(
     path: str,
@@ -17,7 +22,7 @@ def transcribe_audio_file(
     silence_thresh: int = -30,
     keep_silence: int = 500,
     language: Optional[str] = None,
-):
+):  # sourcery skip: raise-specific-error
     """
     Transcribes an audio file using Google Speech Recognition API.
 
@@ -33,12 +38,16 @@ def transcribe_audio_file(
     """
     console.print(f"Transcribing audio file: {path}")
     # create a speech recognition object
+    console.print("Creating speech recognition object...")
     r = sr.Recognizer()
     # open the audio file using pydub
+    console.print("Opening audio file...")
     sound = AudioSegment.from_wav(path)
     # split audio sound where silence is `min_silence_len` or more and get chunks
-    chunks = split_on_silence(sound, min_silence_len=min_silence_len, silence_thresh=sound.dBFS + silence_thresh, keep_silence=keep_silence)
-    
+    console.print("Splitting audio file into chunks...")
+    chunks = split_on_silence(sound, min_silence_len=min_silence_len,
+                              silence_thresh=sound.dBFS + silence_thresh, keep_silence=keep_silence)
+
     # create a directory to store the audio chunks
     folder_name = "audio-chunks"
     if not os.path.isdir(folder_name):
@@ -57,7 +66,17 @@ def transcribe_audio_file(
             with sr.AudioFile(chunk_filename) as source:
                 audio_listened = r.record(source)
                 try:
-                    text = r.recognize_google(audio_listened, language=language)
+                    console.print("Recognizing...")
+                    if not os.getenv("AWS_ACCESS_KEY_ID") or not os.getenv("AWS_SECRET_ACCESS_KEY") or not os.getenv("AWS_BUCKET_NAME"):
+                        raise Exception("AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_BUCKET_NAME must be set in .env file")
+                    text = r.recognize_amazon(audio_listened,
+                                              region="us-east-1",
+                                              access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+                                              secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+                                              bucket_name=os.getenv("AWS_BUCKET_NAME"),
+                                              job_name="speech-recognition-cli2-job",
+                                              file_key="speech-recognition-cli",
+                                              )
                 except sr.UnknownValueError:
                     text = ""
 
@@ -69,9 +88,11 @@ def transcribe_audio_file(
 
     return whole_text
 
+
 @app.command()
 def main(
-    path: str = typer.Argument("caro.wav", help="Path of the audio file to transcribe."),
+    path: str = typer.Argument(
+        "caro.wav", help="Path of the audio file to transcribe."),
     min_silence_len: int = typer.Option(
         500,
         "--min-silence-len",
@@ -91,7 +112,7 @@ def main(
         help="Duration of silence to be kept at the beginning and end of each chunk in milliseconds.",
     ),
     language: Optional[str] = typer.Option(
-        None,
+        "es-co",
         "--language",
         "-l",
         help="Language code of the audio file to be transcribed. If None, auto-detects the language.",
@@ -100,8 +121,8 @@ def main(
     """
     Transcribes an audio file using Google Speech Recognition API.
     """
-    console.print("[bold green]Welcome to Speech Recognition CLI![/bold green]")
-    
+    console.print(
+        "[bold green]Welcome to Speech Recognition CLI![/bold green]")
 
     transcribe_audio_file(
         path=path,
@@ -111,9 +132,11 @@ def main(
         language=language,
     )
 
-    console.print("[bold green]Thank you for using Speech Recognition CLI![/bold green]")
+    console.print(
+        "[bold green]Thank you for using Speech Recognition CLI![/bold green]")
 
     return 0
+
 
 if __name__ == "__main__":
     typer.run(main)

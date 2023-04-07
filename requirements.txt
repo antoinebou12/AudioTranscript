@@ -2,3 +2,4 @@ SpeechRecognition
 pydub
 rich
 typer
+boto3
