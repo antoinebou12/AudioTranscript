@@ -11,7 +11,6 @@ console = Console()
 
 app = typer.Typer()
 
-@app.command()
 def transcribe_audio_file(
     path: str,
     min_silence_len: int = 500,
@@ -36,13 +35,16 @@ def transcribe_audio_file(
     # create a speech recognition object
     r = sr.Recognizer()
     # open the audio file using pydub
-    sound = AudioSegment.from_file(path)
+    sound = AudioSegment.from_wav(path)
     # split audio sound where silence is `min_silence_len` or more and get chunks
     chunks = split_on_silence(sound, min_silence_len=min_silence_len, silence_thresh=sound.dBFS + silence_thresh, keep_silence=keep_silence)
+    
     # create a directory to store the audio chunks
     folder_name = "audio-chunks"
     if not os.path.isdir(folder_name):
         os.mkdir(folder_name)
+
+    console.print(f"Splitting audio file into {len(chunks)} chunks")
 
     with console.status("[bold green]Transcribing...") as status:
         whole_text = ""
@@ -69,7 +71,7 @@ def transcribe_audio_file(
 
 @app.command()
 def main(
-    path: str = typer.Argument(..., help="Path of the audio file to transcribe."),
+    path: str = typer.Argument("caro.wav", help="Path of the audio file to transcribe."),
     min_silence_len: int = typer.Option(
         500,
         "--min-silence-len",
@@ -77,7 +79,7 @@ def main(
         help="Minimum length of silence required to detect the end of a speech segment in milliseconds.",
     ),
     silence_thresh: int = typer.Option(
-        -30,
+        -14,
         "--silence-thresh",
         "-s",
         help="Threshold value in dBFS below which the audio is considered silent.",
@@ -99,6 +101,7 @@ def main(
     Transcribes an audio file using Google Speech Recognition API.
     """
     console.print("[bold green]Welcome to Speech Recognition CLI![/bold green]")
+    
 
     transcribe_audio_file(
         path=path,
@@ -113,4 +116,4 @@ def main(
     return 0
 
 if __name__ == "__main__":
-    app()
+    typer.run(main)
